@@ -1,0 +1,16 @@
+Drug-Target Interaction Prediction
+
+Predicting binding affinity between drug molecules and protein targets 
+using deep learning on the Davis benchmark dataset.
+
+Results
+- Pearson r: 0.661
+- RMSE: 0.654
+- Architecture: Multi-input CNN with separate drug and protein branches
+
+Dataset
+Davis dataset (~25,772 drug-protein pairs)
+Davis dataset from Kaggle: https://www.kaggle.com/datasets/christang0002/davis-and-kiba
+
+Tech Stack
+Python, TensorFlow, RDKit, scikit-learn
