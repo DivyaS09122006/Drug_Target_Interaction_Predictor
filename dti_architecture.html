@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DTI Model Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --drug-color: #00d4ff;
+    --protein-color: #ff6b9d;
+    --merge-color: #a78bfa;
+    --fc-color: #34d399;
+    --output-color: #fbbf24;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --card-bg: #12121a;
+    --border: rgba(255,255,255,0.06);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    padding: 40px 20px;
+    overflow-x: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: 
+      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  h1 {
+    font-family: 'Space Mono', monospace;
+    font-size: clamp(1.2rem, 3vw, 1.8rem);
+    text-align: center;
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, var(--drug-color), var(--protein-color));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .subtitle {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-bottom: 40px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .diagram {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  /* Two branches side by side */
+  .branches {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    width: 100%;
+    margin-bottom: 0;
+  }
+
+  .branch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .branch-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    padding: 6px 16px;
+    border-radius: 100px;
+  }
+
+  .drug-label {
+    color: var(--drug-color);
+    background: rgba(0, 212, 255, 0.08);
+    border: 1px solid rgba(0, 212, 255, 0.2);
+  }
+
+  .protein-label {
+    color: var(--protein-color);
+    background: rgba(255, 107, 157, 0.08);
+    border: 1px solid rgba(255, 107, 157, 0.2);
+  }
+
+  /* Layer boxes */
+  .layer {
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: default;
+  }
+
+  .layer:hover {
+    transform: translateY(-2px);
+  }
+
+  .layer-name {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+
+  .layer-shape {
+    font-size: 0.72rem;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+  }
+
+  .layer-params {
+    font-size: 0.68rem;
+    padding: 2px 8px;
+    border-radius: 100px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* Drug branch colors */
+  .drug .layer { border-color: rgba(0, 212, 255, 0.15); }
+  .drug .layer:hover { box-shadow: 0 4px 20px rgba(0, 212, 255, 0.1); }
+  .drug .layer-name { color: var(--drug-color); }
+  .drug .layer-params { background: rgba(0, 212, 255, 0.08); color: var(--drug-color); }
+
+  /* Protein branch colors */
+  .protein .layer { border-color: rgba(255, 107, 157, 0.15); }
+  .protein .layer:hover { box-shadow: 0 4px 20px rgba(255, 107, 157, 0.1); }
+  .protein .layer-name { color: var(--protein-color); }
+  .protein .layer-params { background: rgba(255, 107, 157, 0.08); color: var(--protein-color); }
+
+  /* Arrow between layers */
+  .arrow {
+    width: 2px;
+    height: 20px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  .arrow::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: 14px;
+    border-radius: 1px;
+  }
+
+  .arrow::after {
+    content: '▼';
+    position: absolute;
+    bottom: 0; left: 50%;
+    transform: translateX(-50%);
+    font-size: 8px;
+    line-height: 1;
+  }
+
+  .drug .arrow::before { background: var(--drug-color); opacity: 0.4; }
+  .drug .arrow::after { color: var(--drug-color); opacity: 0.6; }
+  .protein .arrow::before { background: var(--protein-color); opacity: 0.4; }
+  .protein .arrow::after { color: var(--protein-color); opacity: 0.6; }
+  .merge-arrow::before { background: var(--merge-color); opacity: 0.4; }
+  .merge-arrow::after { color: var(--merge-color); opacity: 0.6; }
+  .fc-arrow::before { background: var(--fc-color); opacity: 0.4; }
+  .fc-arrow::after { color: var(--fc-color); opacity: 0.6; }
+  .out-arrow::before { background: var(--output-color); opacity: 0.4; }
+  .out-arrow::after { color: var(--output-color); opacity: 0.6; }
+
+  /* Merge section */
+  .merge-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 0;
+  }
+
+  /* Converging lines visual */
+  .converge {
+    width: 100%;
+    height: 40px;
+    position: relative;
+    margin: 4px 0;
+  }
+
+  .converge svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Merge + FC layers */
+  .full-width-section {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .merge-layer {
+    width: 60%;
+  }
+
+  .merge-layer .layer {
+    border-color: rgba(167, 139, 250, 0.2);
+    background: rgba(167, 139, 250, 0.04);
+  }
+
+  .merge-layer .layer:hover { box-shadow: 0 4px 20px rgba(167, 139, 250, 0.12); }
+  .merge-layer .layer-name { color: var(--merge-color); }
+  .merge-layer .layer-params { background: rgba(167, 139, 250, 0.08); color: var(--merge-color); }
+
+  .fc-layer {
+    width: 60%;
+  }
+
+  .fc-layer .layer {
+    border-color: rgba(52, 211, 153, 0.15);
+  }
+
+  .fc-layer .layer:hover { box-shadow: 0 4px 20px rgba(52, 211, 153, 0.1); }
+  .fc-layer .layer-name { color: var(--fc-color); }
+  .fc-layer .layer-params { background: rgba(52, 211, 153, 0.08); color: var(--fc-color); }
+
+  .dropout-layer {
+    width: 60%;
+  }
+
+  .dropout-layer .layer {
+    border-color: rgba(100, 116, 139, 0.2);
+    border-style: dashed;
+  }
+
+  .dropout-layer .layer-name { color: var(--muted); }
+  .dropout-layer .layer-params { background: rgba(100,116,139,0.08); color: var(--muted); }
+
+  .output-layer {
+    width: 40%;
+  }
+
+  .output-layer .layer {
+    border-color: rgba(251, 191, 36, 0.25);
+    background: rgba(251, 191, 36, 0.04);
+  }
+
+  .output-layer .layer:hover { box-shadow: 0 4px 20px rgba(251, 191, 36, 0.15); }
+  .output-layer .layer-name { color: var(--output-color); }
+  .output-layer .layer-params { background: rgba(251, 191, 36, 0.1); color: var(--output-color); }
+
+  /* Output result box */
+  .result-box {
+    margin-top: 20px;
+    padding: 16px 32px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(251,191,36,0.08), rgba(251,191,36,0.03));
+    border: 1px solid rgba(251, 191, 36, 0.2);
+    text-align: center;
+  }
+
+  .result-box .result-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 4px;
+  }
+
+  .result-box .result-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 1.1rem;
+    color: var(--output-color);
+    font-weight: 700;
+  }
+
+  /* Stats bar */
+  .stats {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 40px;
+  }
+
+  .stat {
+    padding: 10px 20px;
+    border-radius: 8px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    text-align: center;
+  }
+
+  .stat-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .stat-label {
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-top: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 24px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72rem;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+  }
+
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  /* Animations */
+  @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .branch { animation: fadeSlideIn 0.5s ease forwards; }
+  .drug { animation-delay: 0.1s; }
+  .protein { animation-delay: 0.2s; }
+  .merge-container { animation: fadeSlideIn 0.5s ease 0.3s forwards; opacity: 0; }
+  .full-width-section { animation: fadeSlideIn 0.5s ease 0.4s forwards; opacity: 0; }
+  .stats { animation: fadeSlideIn 0.5s ease 0.5s forwards; opacity: 0; }
+
+  /* Pulse on output */
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(251,191,36,0.2); }
+    50% { box-shadow: 0 0 0 8px rgba(251,191,36,0); }
+  }
+
+  .output-layer .layer { animation: pulse 2.5s ease-in-out infinite; }
+</style>
+</head>
+<body>
+
+<h1>DTI Predictor — Neural Network Architecture</h1>
+<p class="subtitle">Drug-Target Interaction · Davis Dataset · Pearson r = 0.661</p>
+
+<div class="diagram">
+
+  <!-- Two branches -->
+  <div class="branches">
+
+    <!-- Drug Branch -->
+    <div class="branch drug">
+      <div class="branch-label drug-label">💊 Drug Branch</div>
+
+      <div class="layer">
+        <span class="layer-name">Input</span>
+        <span class="layer-shape">(92,)</span>
+        <span class="layer-params">SMILES</span>
+      </div>
+      <div class="arrow drug"></div>
+
+      <div class="layer">
+        <span class="layer-name">Embedding</span>
+        <span class="layer-shape">(92, 128)</span>
+        <span class="layer-params">~6,400</span>
+      </div>
+      <div class="arrow drug"></div>
+
+      <div class="layer">
+        <span class="layer-name">Conv1D</span>
+        <span class="layer-shape">(90, 64)</span>
+        <span class="layer-params">24,576</span>
+      </div>
+      <div class="arrow drug"></div>
+
+      <div class="layer">
+        <span class="layer-name">GlobalMaxPool</span>
+        <span class="layer-shape">(64,)</span>
+        <span class="layer-params">0</span>
+      </div>
+      <div class="arrow drug"></div>
+
+      <div class="layer">
+        <span class="layer-name">Dense(128)</span>
+        <span class="layer-shape">(128,)</span>
+        <span class="layer-params">8,320</span>
+      </div>
+      <div class="arrow drug"></div>
+
+      <div class="layer">
+        <span class="layer-name">Dropout</span>
+        <span class="layer-shape">0.3</span>
+        <span class="layer-params">0</span>
+      </div>
+    </div>
+
+    <!-- Protein Branch -->
+    <div class="branch protein">
+      <div class="branch-label protein-label">🧬 Protein Branch</div>
+
+      <div class="layer">
+        <span class="layer-name">Input</span>
+        <span class="layer-shape">(1200,)</span>
+        <span class="layer-params">Amino Acids</span>
+      </div>
+      <div class="arrow protein"></div>
+
+      <div class="layer">
+        <span class="layer-name">Embedding</span>
+        <span class="layer-shape">(1200, 128)</span>
+        <span class="layer-params">~2,688</span>
+      </div>
+      <div class="arrow protein"></div>
+
+      <div class="layer">
+        <span class="layer-name">Conv1D</span>
+        <span class="layer-shape">(1198, 64)</span>
+        <span class="layer-params">24,576</span>
+      </div>
+      <div class="arrow protein"></div>
+
+      <div class="layer">
+        <span class="layer-name">GlobalMaxPool</span>
+        <span class="layer-shape">(64,)</span>
+        <span class="layer-params">0</span>
+      </div>
+      <div class="arrow protein"></div>
+
+      <div class="layer">
+        <span class="layer-name">Dense(128)</span>
+        <span class="layer-shape">(128,)</span>
+        <span class="layer-params">8,320</span>
+      </div>
+      <div class="arrow protein"></div>
+
+      <div class="layer">
+        <span class="layer-name">Dropout</span>
+        <span class="layer-shape">0.3</span>
+        <span class="layer-params">0</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Converging lines -->
+  <div class="converge">
+    <svg viewBox="0 0 900 40" preserveAspectRatio="none">
+      <path d="M 225 0 Q 450 40 450 40" stroke="rgba(167,139,250,0.3)" stroke-width="1.5" fill="none"/>
+      <path d="M 675 0 Q 450 40 450 40" stroke="rgba(167,139,250,0.3)" stroke-width="1.5" fill="none"/>
+      <circle cx="450" cy="40" r="3" fill="rgba(167,139,250,0.6)"/>
+    </svg>
+  </div>
+
+  <!-- Merge + FC -->
+  <div class="merge-container">
+    <div class="full-width-section">
+
+      <!-- Concatenate -->
+      <div class="merge-layer">
+        <div class="layer">
+          <span class="layer-name">Concatenate</span>
+          <span class="layer-shape">(256,)</span>
+          <span class="layer-params">drug + protein</span>
+        </div>
+      </div>
+      <div class="arrow merge-arrow" style="width:2px;height:20px;margin:0 auto;position:relative;">
+        <div style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:2px;height:14px;background:rgba(167,139,250,0.4);border-radius:1px;"></div>
+        <div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);font-size:8px;color:rgba(167,139,250,0.6);">▼</div>
+      </div>
+
+      <!-- FC Dense 256 -->
+      <div class="fc-layer">
+        <div class="layer">
+          <span class="layer-name">Dense(256)</span>
+          <span class="layer-shape">(256,)</span>
+          <span class="layer-params">65,536</span>
+        </div>
+      </div>
+      <div class="arrow" style="width:2px;height:20px;margin:0 auto;position:relative;">
+        <div style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:2px;height:14px;background:rgba(52,211,153,0.4);border-radius:1px;"></div>
+        <div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);font-size:8px;color:rgba(52,211,153,0.6);">▼</div>
+      </div>
+
+      <!-- Dropout -->
+      <div class="dropout-layer">
+        <div class="layer">
+          <span class="layer-name">Dropout</span>
+          <span class="layer-shape">0.4</span>
+          <span class="layer-params">0</span>
+        </div>
+      </div>
+      <div class="arrow" style="width:2px;height:20px;margin:0 auto;position:relative;">
+        <div style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:2px;height:14px;background:rgba(52,211,153,0.4);border-radius:1px;"></div>
+        <div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);font-size:8px;color:rgba(52,211,153,0.6);">▼</div>
+      </div>
+
+      <!-- FC Dense 128 -->
+      <div class="fc-layer">
+        <div class="layer">
+          <span class="layer-name">Dense(128)</span>
+          <span class="layer-shape">(128,)</span>
+          <span class="layer-params">32,768</span>
+        </div>
+      </div>
+      <div class="arrow" style="width:2px;height:20px;margin:0 auto;position:relative;">
+        <div style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:2px;height:14px;background:rgba(52,211,153,0.4);border-radius:1px;"></div>
+        <div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);font-size:8px;color:rgba(52,211,153,0.6);">▼</div>
+      </div>
+
+      <!-- Dropout -->
+      <div class="dropout-layer">
+        <div class="layer">
+          <span class="layer-name">Dropout</span>
+          <span class="layer-shape">0.4</span>
+          <span class="layer-params">0</span>
+        </div>
+      </div>
+      <div class="arrow" style="width:2px;height:20px;margin:0 auto;position:relative;">
+        <div style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:2px;height:14px;background:rgba(251,191,36,0.4);border-radius:1px;"></div>
+        <div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);font-size:8px;color:rgba(251,191,36,0.6);">▼</div>
+      </div>
+
+      <!-- Output -->
+      <div class="output-layer">
+        <div class="layer">
+          <span class="layer-name">Dense(1)</span>
+          <span class="layer-shape">(1,)</span>
+          <span class="layer-params">129</span>
+        </div>
+      </div>
+
+      <!-- Result -->
+      <div class="result-box" style="margin-top:16px;">
+        <div class="result-label">Output</div>
+        <div class="result-value">Predicted pKd (Binding Affinity)</div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- Stats -->
+<div class="stats">
+  <div class="stat">
+    <div class="stat-value">170,625</div>
+    <div class="stat-label">Total Params</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">0.661</div>
+    <div class="stat-label">Pearson r</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">0.654</div>
+    <div class="stat-label">RMSE</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">50</div>
+    <div class="stat-label">Best Epoch</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">Davis</div>
+    <div class="stat-label">Dataset</div>
+  </div>
+</div>
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--drug-color)"></div>Drug Branch</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--protein-color)"></div>Protein Branch</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--merge-color)"></div>Merge</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--fc-color)"></div>Fully Connected</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--output-color)"></div>Output</div>
+</div>
+
+</body>
+</html>
